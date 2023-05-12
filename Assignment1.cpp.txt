@@ -1,0 +1,454 @@
+//Vytenis Sakalinskas - 20816648
+// Assignment1.cpp: A program using the TL-Engine
+
+#include <TL-Engine.h>	// TL-Engine include file and namespace
+using namespace tle;
+const double kGameSpeed = 0.01f; //How many units the ball will move each frame
+const int kCoordinateY = 10; //Starting Y coordinate for all balls to look like they're on the surface of the ground
+
+//parameters for ball starting positions
+const int kPositionCoordinate1 = 50; 
+const int kPositionCoordinate2 = 100; 
+const int kPositionCoordinate3 = 0;
+
+//parameters for the camera position
+const int kCameraPositionX = 0;
+const int kCameraPositionY = 120;
+const int kCameraPositionZ = 200;
+
+void main()
+{
+	// Create a 3D engine (using TLX engine here) and open a window for it
+	I3DEngine* myEngine = New3DEngine( kTLX );
+	myEngine->StartWindowed();
+
+	// Add default folder for meshes and other media
+	myEngine->AddMediaFolder("./media");
+
+	/**** Set up your scene here ****/
+
+	//
+	IMesh* floorMesh;
+	IModel*  floor;
+
+	floorMesh = myEngine->LoadMesh("Floor.x");
+	floor = floorMesh->CreateModel();
+
+
+	//Creating all four of the game's balls
+	IMesh* ballMesh; //Creating mesh for further reuse to create all four balls
+	IModel* ball1;
+
+	ballMesh = myEngine->LoadMesh("ball.x"); //Loading in the reusable mesh to be reused for all the other balls
+	ball1 = ballMesh->CreateModel(-kPositionCoordinate1, kCoordinateY, kPositionCoordinate1);
+
+	IModel* ball2;
+	ball2 = ballMesh->CreateModel(kPositionCoordinate1, kCoordinateY, kPositionCoordinate1);
+
+	IModel* ball3;
+	ball3 = ballMesh->CreateModel(kPositionCoordinate3, kCoordinateY, kPositionCoordinate3);
+
+	IModel* ball4;
+	ball4 = ballMesh->CreateModel(kPositionCoordinate3, kCoordinateY, kPositionCoordinate2);
+
+
+	//Setting up the camera to have a slanted downward look towards the balls 
+	ICamera* myCamera; myCamera = myEngine->CreateCamera(kManual, kCameraPositionX, kCameraPositionY, -kCameraPositionZ);
+	myCamera->RotateX(20);
+
+	//An enumerator to keep track of which one of the four states the ball movement is currently in
+	enum ball1MovementDirections { North, East, South, West };
+	ball1MovementDirections currentMovement = North;
+
+	string ballSkins[4]{ "violet.png", "blue.png", "indigo.png", "fawn.png" }; //An array used for skin changing
+
+	 //The criterias that the balls have to meet before movement direction changes and to check if the balls are on the ground
+	enum ball1Limits { maxNorthX = 0, maxNorthZ = 100, maxEastX = 50, maxEastZ = 50, maxSouthX = 0, maxSouthZ = 0, maxWestX = -50, maxWestZ = 50, ball1MaxPosY = 40, ball1MinPosY = 10 };
+
+	bool isReversed = false; //A boolean used to set the reversed and not reversed states
+	bool isPaused = false; //A boolean used to set the paused or not paused states
+	bool onTheGround = true; //A boolean used to indicate if the balls are on the ground
+
+	double speedMulti = 1; //The multiplier that is used to gradually increase and decrease speed when scrolling
+	double sphereSpeed = speedMulti * kGameSpeed; //The amount of units the ball moves in a single frame
+
+	double mouseWheelPos; //A variable to check if the mouse wheel was scrolled up or down
+
+	double mouseWheelMultiChange = 0.1; //The amount that is added to the multiplier that is used for increasing and decreasing units moved
+
+	double maxSphereSpeed = kGameSpeed * 4; //A limiter for how fast the balls can move
+	double minSphereSpeed = kGameSpeed / 2; //A limiter for how slow the balls can move
+
+	double rotationSpeed = kGameSpeed * speedMulti; //A variable to change the rotation speed of the balls
+
+	float groundCondition = 10; //The number used to check if the balls are considered to be on the ground or not
+
+	//setting skins to differentiate the balls
+	ball2->SetSkin(ballSkins[1]);
+	ball3->SetSkin(ballSkins[2]);
+	ball4->SetSkin(ballSkins[3]);
+	int skinCounter = 0; //The starting amount for the skin changing function
+	int maxSkinCounter = 3; //the maximum amount for the skin changing function, anything above it resets it back to the starting amount
+
+
+	// The main game loop, repeat until engine is stopped
+	while (myEngine->IsRunning())
+	{
+		// Draw the scene
+		myEngine->DrawScene();
+
+		/**** Update your scene each frame here ****/
+		mouseWheelPos = myEngine->GetMouseWheelMovement(); //Updating the check for the mouse wheel because the rotation can occur multiple times
+
+		//code for movement of balls
+		if (isPaused == false) //A boolean based if to pause the game
+		{
+				if (currentMovement == North) //Checking the current rotation of the first ball
+				{
+					if (isReversed == false) //Checking if the balls are not moving in reverse
+					{
+						//How many units the balls move each frame 
+						ball1->MoveX(sphereSpeed);
+						ball1->MoveZ(sphereSpeed);
+						ball2->MoveX(-sphereSpeed);
+						ball2->MoveZ(-sphereSpeed);
+						ball3->MoveX(-sphereSpeed);
+						ball3->MoveZ(sphereSpeed);
+						ball4->MoveX(sphereSpeed);
+						ball4->MoveZ(-sphereSpeed);
+
+						if (onTheGround == true) //Checking if the balls are supposed to be rotating
+						{
+							//how many units the balls rotate each frame
+							ball1->RotateX(rotationSpeed);
+							ball1->RotateZ(-rotationSpeed);
+							ball2->RotateX(-rotationSpeed);
+							ball2->RotateZ(rotationSpeed);
+							ball3->RotateX(rotationSpeed);
+							ball3->RotateZ(rotationSpeed);
+							ball4->RotateX(-rotationSpeed);
+							ball4->RotateZ(-rotationSpeed);
+						}
+
+						if (ball1->GetX() >= maxNorthX && ball1->GetZ() >= maxNorthZ) //Checking if the balls have met the criteria for movement direction change
+						{
+							currentMovement = East; //Changing the direction that the ball is currently moving towards
+						}
+					}
+
+					if (isReversed == true) //Checking if the balls are moving in reverse
+					{
+						//How many units the balls move each frame 
+						ball1->MoveX(-sphereSpeed);
+						ball1->MoveZ(-sphereSpeed);
+						ball2->MoveX(sphereSpeed);
+						ball2->MoveZ(sphereSpeed);
+						ball3->MoveX(sphereSpeed);
+						ball3->MoveZ(-sphereSpeed);
+						ball4->MoveX(-sphereSpeed);
+						ball4->MoveZ(sphereSpeed);
+
+						if (onTheGround == true) //Checking if the balls are supposed to be rotating
+						{
+							ball1->RotateX(-rotationSpeed);
+							ball1->RotateZ(rotationSpeed);
+							ball2->RotateX(rotationSpeed);
+							ball2->RotateZ(-rotationSpeed);
+							ball3->RotateX(-rotationSpeed);
+							ball3->RotateZ(-rotationSpeed);
+							ball4->RotateX(rotationSpeed);
+							ball4->RotateZ(rotationSpeed);
+						}
+
+						if (ball1->GetX() <= maxWestX && ball1->GetZ() <= maxWestZ) //Checking if the balls have met the criteria for movement direction change
+						{
+							currentMovement = West;//Changing the direction that the ball is currently moving towards
+						}
+					}
+				}
+				if (currentMovement == East) //Same comments as North
+				{
+					if (isReversed == false) 
+					{
+						ball1->MoveX(sphereSpeed);
+						ball1->MoveZ(-sphereSpeed);
+						ball2->MoveX(-sphereSpeed);
+						ball2->MoveZ(sphereSpeed);
+						ball3->MoveX(sphereSpeed);
+						ball3->MoveZ(sphereSpeed);
+						ball4->MoveX(-sphereSpeed);
+						ball4->MoveZ(-sphereSpeed);
+
+						if (onTheGround == true)
+						{
+							ball1->RotateX(-rotationSpeed);
+							ball1->RotateZ(-rotationSpeed);
+							ball2->RotateX(rotationSpeed);
+							ball2->RotateZ(rotationSpeed);
+							ball3->RotateX(rotationSpeed);
+							ball3->RotateZ(-rotationSpeed);
+							ball4->RotateX(-rotationSpeed);
+							ball4->RotateZ(rotationSpeed);
+						}
+
+						if (ball1->GetX() >= maxEastX && ball1->GetZ() >= maxEastZ)
+						{
+							currentMovement = South;
+						}
+					}
+					if (isReversed == true) 
+					{
+						ball1->MoveX(-sphereSpeed);
+						ball1->MoveZ(sphereSpeed);
+						ball2->MoveX(sphereSpeed);
+						ball2->MoveZ(-sphereSpeed);
+						ball3->MoveX(-sphereSpeed);
+						ball3->MoveZ(-sphereSpeed);
+						ball4->MoveX(sphereSpeed);
+						ball4->MoveZ(sphereSpeed);
+
+						if (onTheGround == true)
+						{
+							ball1->RotateX(rotationSpeed);
+							ball1->RotateZ(rotationSpeed);
+							ball2->RotateX(-rotationSpeed);
+							ball2->RotateZ(-rotationSpeed);
+							ball3->RotateX(-rotationSpeed);
+							ball3->RotateZ(rotationSpeed);
+							ball4->RotateX(rotationSpeed);
+							ball4->RotateZ(-rotationSpeed);
+						}
+
+						if (ball1->GetX() <= maxNorthX && ball1->GetZ() >= maxNorthX) 
+						{
+							currentMovement = North;
+						}
+					}
+				}
+				if (currentMovement == South) //Same comments as North
+				{
+					if (isReversed == false)
+					{
+						ball1->MoveX(-sphereSpeed);
+						ball1->MoveZ(-sphereSpeed);
+						ball2->MoveX(sphereSpeed);
+						ball2->MoveZ(sphereSpeed);
+						ball3->MoveX(sphereSpeed);
+						ball3->MoveZ(-sphereSpeed);
+						ball4->MoveX(-sphereSpeed);
+						ball4->MoveZ(sphereSpeed);
+
+						if (onTheGround == true)
+						{
+							ball1->RotateX(-rotationSpeed);
+							ball1->RotateZ(rotationSpeed);
+							ball2->RotateX(rotationSpeed);
+							ball2->RotateZ(-rotationSpeed);
+							ball3->RotateX(-rotationSpeed);
+							ball3->RotateZ(-rotationSpeed);
+							ball4->RotateX(rotationSpeed);
+							ball4->RotateZ(rotationSpeed);
+						}
+
+						if (ball1->GetX() <= maxSouthX && ball1->GetZ() <= maxSouthZ)
+						{
+							currentMovement = West;
+						}
+					}
+					if (isReversed == true) 
+					{
+						ball1->MoveX(sphereSpeed);
+						ball1->MoveZ(sphereSpeed);
+						ball2->MoveX(-sphereSpeed);
+						ball2->MoveZ(-sphereSpeed);
+						ball3->MoveX(-sphereSpeed);
+						ball3->MoveZ(sphereSpeed);
+						ball4->MoveX(sphereSpeed);
+						ball4->MoveZ(-sphereSpeed);
+
+						if (onTheGround == true)
+						{
+							ball1->RotateX(rotationSpeed);
+							ball1->RotateZ(-rotationSpeed);
+							ball2->RotateX(-rotationSpeed);
+							ball2->RotateZ(rotationSpeed);
+							ball3->RotateX(rotationSpeed);
+							ball3->RotateZ(rotationSpeed);
+							ball4->RotateX(-rotationSpeed);
+							ball4->RotateZ(-rotationSpeed);
+						}
+						
+						if (ball1->GetX() >= maxEastX && ball1->GetZ() >= maxEastZ) 
+						{
+							currentMovement = East;
+						}
+					}
+				}
+				if (currentMovement == West) //Same comments as North
+				{
+					if (isReversed == false)
+					{
+						ball1->MoveX(-sphereSpeed);
+						ball1->MoveZ(sphereSpeed);
+						ball2->MoveX(sphereSpeed);
+						ball2->MoveZ(-sphereSpeed);
+						ball3->MoveX(-sphereSpeed);
+						ball3->MoveZ(-sphereSpeed);
+						ball4->MoveX(sphereSpeed);
+						ball4->MoveZ(sphereSpeed);
+
+						if (onTheGround == true)
+						{
+							ball1->RotateX(rotationSpeed);
+							ball1->RotateZ(rotationSpeed);
+							ball2->RotateX(-rotationSpeed);
+							ball3->RotateX(-rotationSpeed);
+							ball3->RotateZ(rotationSpeed);
+							ball4->RotateX(rotationSpeed);
+							ball4->RotateZ(-rotationSpeed);
+						}
+
+						if (ball1->GetX() <= maxWestX && ball1->GetZ() >= maxWestZ)
+						{
+							currentMovement = North;
+						}
+					}
+					if (isReversed == true) 
+					{
+						ball1->MoveX(sphereSpeed);
+						ball1->MoveZ(-sphereSpeed);
+						ball2->MoveX(-sphereSpeed);
+						ball2->MoveZ(sphereSpeed);
+						ball3->MoveX(sphereSpeed);
+						ball3->MoveZ(sphereSpeed);
+						ball4->MoveX(-sphereSpeed);
+						ball4->MoveZ(-sphereSpeed);
+
+						if (onTheGround == true)
+						{
+							ball1->RotateX(-rotationSpeed);
+							ball1->RotateZ(-rotationSpeed);
+							ball2->RotateX(rotationSpeed);
+							ball3->RotateX(rotationSpeed);
+							ball3->RotateZ(-rotationSpeed);
+							ball4->RotateX(-rotationSpeed);
+							ball4->RotateZ(rotationSpeed);
+						}
+
+						if (ball1->GetX() >= maxSouthX && ball1->GetZ() <= maxSouthZ) 
+						{
+							currentMovement = South;
+						}
+					}
+			}
+
+			//Reversing the ball movement using a bool
+			if (myEngine->KeyHit(Key_R))
+			{
+				isReversed = !isReversed;
+			}
+
+			//Increasing the speed by checking if the number is above 0, if so the scroll wheel was moved up
+			if (mouseWheelPos > 0)
+			{
+				if (sphereSpeed < maxSphereSpeed) 
+				{
+					speedMulti += mouseWheelMultiChange; //increasing the multiplier which increases overall speed
+					sphereSpeed = kGameSpeed * speedMulti;
+				}
+			}
+			//Decreasing the speed by checking if the number is below, if so the scroll wheel was moved down
+			if (mouseWheelPos < 0) 
+			{
+				if (sphereSpeed > minSphereSpeed)
+				{
+					speedMulti -= mouseWheelMultiChange; //decreasing the multiplier which reduces overall speed
+					sphereSpeed = kGameSpeed * speedMulti;
+				}
+			}
+
+			//Moving the balls up
+			if (myEngine->KeyHeld(Key_Up)) 
+			{
+				if (ball1->GetY() < ball1MaxPosY) //Checking if the balls are not above the criteria before moving them up
+				{
+					ball1->MoveY(sphereSpeed);
+					ball2->MoveY(sphereSpeed);
+					ball3->MoveY(sphereSpeed);
+					ball4->MoveY(sphereSpeed);
+					onTheGround = false; //Changing the boolean so that the balls would stop rotating
+				}
+			}
+			//Moving the balls down
+			if (myEngine->KeyHeld(Key_Down)) 
+			{
+				if (ball1->GetY() > ball1MinPosY) //Checking if the balls are not below the criteria before moving them down
+				{
+					ball1->MoveY(-sphereSpeed);
+					ball2->MoveY(-sphereSpeed);
+					ball3->MoveY(-sphereSpeed);
+					ball4->MoveY(-sphereSpeed);
+
+					if (ball1->GetY() <= groundCondition)  //Checking if the balls should start rotating again
+					{
+						onTheGround = true; //The boolean responsible for changing the rotation state
+					}
+				}
+			}
+
+			//Changing the skins of the balls
+			if (myEngine->KeyHit(Key_E))
+			{
+				if (skinCounter > maxSkinCounter) //Checking if the current ball position is not valid within the array
+				{
+					skinCounter = 0; //Resetting the counter if it goes above the range of the array
+				}
+				if (skinCounter == 0)
+				{
+					//Set the ball skins by grabbing them from the array
+					ball1->SetSkin(ballSkins[2]);
+					ball2->SetSkin(ballSkins[3]);
+					ball3->SetSkin(ballSkins[1]);
+					ball4->SetSkin(ballSkins[0]);
+				}
+				if (skinCounter == 1)
+				{
+					ball1->SetSkin(ballSkins[1]);
+					ball2->SetSkin(ballSkins[0]);
+					ball3->SetSkin(ballSkins[3]);
+					ball4->SetSkin(ballSkins[2]);
+				}
+				if (skinCounter == 2)
+				{
+					ball1->SetSkin(ballSkins[3]);
+					ball2->SetSkin(ballSkins[2]);
+					ball3->SetSkin(ballSkins[0]);
+					ball4->SetSkin(ballSkins[1]);
+				}
+				if (skinCounter == 3)
+				{
+					ball1->SetSkin(ballSkins[0]);
+					ball2->SetSkin(ballSkins[1]);
+					ball3->SetSkin(ballSkins[2]);
+					ball4->SetSkin(ballSkins[3]);
+				}
+				skinCounter += 1; //Increasing the counter that checks how many times the skins have been rotated
+			}
+		}
+
+		//Changing the state of the game to paused or unpaused
+		if (myEngine->KeyHit(Key_P))
+		{
+			isPaused = !isPaused;
+		}
+
+		//Exiting out of the game, can work while paused
+		if (myEngine->KeyHit(Key_Escape))
+		{
+			myEngine->Stop();
+		}
+	}
+
+	// Delete the 3D engine now we are finished with it
+	myEngine->Delete();
+}
